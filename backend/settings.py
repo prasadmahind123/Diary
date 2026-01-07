@@ -87,15 +87,12 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': 'diary_db;',
         'USER' : 'postgres',
-        'PASSWORD': 'GWXXF19T6vlvI588',
-        'HOST': 'db.cjlbhptkaosijpmxxwuz.supabase.co',
-        'PORT': '5432',               
-        'OPTIONS': {
-            'sslmode': 'require',     
-        },
+        'PASSWORD': '',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -137,6 +134,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173", 
-    "http://localhost:3000", 
+    "http://localhost:3000",  
+    "http://localhost:5173",  
+    
 ]
