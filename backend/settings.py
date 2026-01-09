@@ -15,7 +15,7 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-OPENAI_API_KEY = 'AIzaSyCUfveG4qLEBXuw384_UXFmVQlMxNWw-mY'
+OPENAI_API_KEY = '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'
 
 
 # Quick-start development settings - unsuitable for production

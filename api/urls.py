@@ -1,9 +1,9 @@
 from django.urls import path , include
 from rest_framework.routers import DefaultRouter 
-from .views import Noteviewset, CreateUserView, TranscribeAudioView
+from .views import NoteViewSet, CreateUserView, TranscribeAudioView
 
 router = DefaultRouter()
-router.register(r'notes' , Noteviewset , basename='note')
+router.register(r'notes' , NoteViewSet , basename='note')
 
 urlpatterns = [
     path('user/register/', CreateUserView.as_view(), name='register'),
