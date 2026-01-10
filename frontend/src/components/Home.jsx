@@ -2,6 +2,9 @@ import  { useState, useEffect , useRef } from "react";
 import {  useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 function Home() {
+    const recognitionRef = useRef(null);
+    const [isRecording, setIsRecording] = useState(false);
+
     const [notes, setNotes] = useState([]);
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
@@ -15,89 +18,82 @@ function Home() {
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState("");
     const [editContent, setEditContent] = useState("");
+    
+    useEffect(() => {
+        const SpeechRecognition =
+            window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    // Audio Recording States
-    const [isRecording, setIsRecording] = useState(false);
-    const [isTranscribing, setIsTranscribing] = useState(false);
-    const mediaRecorderRef = useRef(null);
-    const audioChunksRef = useRef([]);
-
-        // --- WHISPER RECORDING LOGIC ---
-    const handleRecordToggle = async (setTextFn) => {
-        if (isRecording) {
-            // STOP RECORDING
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-                mediaRecorderRef.current.stop();
-                setIsRecording(false);
-                setIsTranscribing(true);
-            }
-        } else {
-            // START RECORDING
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorderRef.current = new MediaRecorder(stream);
-                audioChunksRef.current = [];
-
-                mediaRecorderRef.current.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunksRef.current.push(event.data);
-                    }
-                };
-
-                mediaRecorderRef.current.onstop = async () => {
-                    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                    await sendAudioToWhisper(audioBlob, setTextFn);
-                    stream.getTracks().forEach(track => track.stop()); // Release mic
-                };
-
-                mediaRecorderRef.current.start();
-                setIsRecording(true);
-            } catch (error) {
-                console.error("Error accessing microphone:", error);
-                alert("Could not access microphone.");
-            }
-        }
-    };
-
-    const sendAudioToWhisper = async (audioBlob, setTextFn) => {
-        const token = localStorage.getItem("access");
-        if (!token) {
-            alert("Please login to use Whisper speech-to-text.");
-            setIsTranscribing(false);
+        if (!SpeechRecognition) {
+            console.warn("SpeechRecognition not supported");
             return;
         }
 
-        const formData = new FormData();
-        formData.append("audio", audioBlob, "recording.webm");
+        const recognition = new SpeechRecognition();
+        recognition.lang = "en-IN";
+        recognition.continuous = true;
+        recognition.interimResults = false;
 
-        try {
-            const res = await axios.post("http://127.0.0.1:8000/api/transcribe/", formData, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "multipart/form-data",
-                },
-            });
-            
-            const transcribedText = res.data.text;
-            setTextFn((prev) => (prev ? prev + " " + transcribedText : transcribedText));
-        } catch (error) {
-            console.error("Transcription failed", error);
-            if (error.response && error.response.status === 401) {
-                alert("Session expired. Please login again to use speech features.");
-                handleLogout(); // Force logout so user can get a new token
-            } else {
-                alert("Failed to transcribe audio. Ensure backend is running and OpenAI Key is valid.");
+        recognition.onstart = () => {
+            console.log("🎤 Speech recognition started");
+        };
+
+        recognition.onresult = (event) => {
+            console.log("📝 Speech result event:", event);
+
+            let finalText = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                finalText += event.results[i][0].transcript + " ";
             }
-        } finally {
-            setIsTranscribing(false);
-        }
-    };
+            }
+
+            if (finalText) {
+            setContent((prev) => prev + finalText);
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error("❌ Speech error:", event.error);
+        };
+
+        recognition.onend = () => {
+            console.log("⛔ Speech recognition ended");
+            setIsRecording(false);
+        };
+
+        recognitionRef.current = recognition;
+
+        return () => {
+            recognition.stop();
+        };
+        }, []);
 
 
-    useEffect(() => {
-        checkLoginAndFetch();
-    }, []);
+        const handleSpeechToggle = () => {
+            const recognition = recognitionRef.current;
 
+            if (!recognition) {
+                alert("Speech recognition not supported in this browser.");
+                return;
+            }
+
+            if (isRecording) {
+                recognition.stop();
+                setIsRecording(false);
+                console.log("🛑 Manual stop");
+            } else {
+                recognition.start();
+                setIsRecording(true);
+                console.log("▶️ Manual start");
+            }
+            };
+
+
+
+    
+        useEffect(() => {
+            checkLoginAndFetch();
+        }, []);
     const checkLoginAndFetch = async () => {
         const token = localStorage.getItem("access");
         if (token) {
@@ -302,25 +298,14 @@ function Home() {
                             <input type="text" placeholder="Title of your memory..." value={title} onChange={(e) => setTitle(e.target.value)} required className="w-full mb-4 text-black rounded-lg border-gray-300 border p-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition" />
                             <div className="relative mb-4">
                                 <textarea placeholder="What happened today? (Click mic to dictate)" value={content} onChange={(e) => setContent(e.target.value)} required rows="4" className="w-full text-black rounded-lg border-gray-300 border p-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition pr-10"></textarea>
-                                <button 
-                                    type="button" 
-                                    onClick={() => handleRecordToggle(setContent)}
-                                    disabled={isTranscribing}
-                                    className={`absolute bottom-3 right-3 p-2 rounded-full transition-all ${
-                                        isRecording 
-                                            ? 'bg-red-500 text-white animate-pulse shadow-lg' 
-                                            : isTranscribing 
-                                                ? 'bg-yellow-400 text-white animate-bounce' 
-                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                    }`}
-                                    title={isRecording ? "Stop Recording" : "Start Recording"}
-                                >
-                                    {isTranscribing ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" /></svg>
-                                    )}
-                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSpeechToggle}
+                                    className={`mic-btn ${isRecording ? "active" : ""}`}
+                                    >
+                                    🎤
+                                    </button>
+
                             </div>
                             <div className="flex justify-end items-center gap-4">
                                 {!isLoggedIn && <span className="text-xs text-orange-500">You will be asked to login on save.</span>}
